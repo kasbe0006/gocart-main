@@ -18,6 +18,7 @@
 - [✨ Features](#-features)
 - [🛠️ Tech Stack](#-tech-stack)
 - [🚀 Getting Started](#-getting-started)
+- [🔁 Deployment Workflow](#-deployment-workflow)
 - [🧩 API Contract](#-api-contract)
 - [🤝 Contributing](#-contributing)
 - [📜 License](#-license)
@@ -82,6 +83,31 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 You can start editing the page by modifying `app/(public)/page.js`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Outfit](https://vercel.com/font), a new font family for Vercel.
+
+---
+
+## 🔁 Deployment Workflow <a name="-deployment-workflow"></a>
+
+Use this safe flow for production releases:
+
+1. Create feature branches from `dev`.
+2. Open pull requests into `dev` for integration testing.
+3. Open pull requests from `dev` to `main` only when ready for production.
+4. Vercel deploys production from `main` automatically.
+
+Recommended local commands:
+
+```bash
+git checkout dev
+git pull
+git checkout -b feature/my-change
+# make changes
+git add .
+git commit -m "feat: my change"
+git push -u origin feature/my-change
+```
+
+After PR merge to `main`, Vercel triggers an automatic production deployment.
 
 ---
 

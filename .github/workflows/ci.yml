@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [dev]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/velmora
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/velmora
+          AUTH_JWT_SECRET: ci-build-secret
+          AUTH_RESET_TOKEN_TTL_MINUTES: 15
+          NEXT_PUBLIC_CURRENCY_SYMBOL: $
