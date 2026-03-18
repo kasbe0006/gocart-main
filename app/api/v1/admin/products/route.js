@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/server/prisma'
 import { requireRoles } from '@/lib/server/auth'
+import { sanitizeQuery, validatePagination } from '@/lib/server/validation'
+import { successResponse, internalError, unauthorizedError, validationError } from '@/lib/server/errors'
 
 export async function GET(request) {
     try {
@@ -8,11 +10,10 @@ export async function GET(request) {
         if (!access.ok) return access.response
 
         const searchParams = request.nextUrl.searchParams
-        const category = searchParams.get('category')
-        const search = searchParams.get('search')
+        const category = sanitizeQuery(searchParams.get('category'))
+        const search = sanitizeQuery(searchParams.get('search'))
         const inStock = searchParams.get('inStock')
-        const page = Math.max(Number.parseInt(searchParams.get('page') || '1', 10), 1)
-        const limit = Math.min(Math.max(Number.parseInt(searchParams.get('limit') || '20', 10), 1), 100)
+        const { page, limit } = validatePagination(searchParams)
 
         const where = {
             ...(category ? { category } : {}),
@@ -46,22 +47,14 @@ export async function GET(request) {
             prisma.product.count({ where }),
         ])
 
-        return NextResponse.json({
-            success: true,
-            data: { products },
-            meta: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit),
-            },
+        return successResponse({ products }, {
+            page,
+            limit,
+            total,
+            totalPages: Math.max(Math.ceil(total / limit), 1),
         })
     } catch (error) {
-        console.error('GET /api/v1/admin/products failed', error)
-        return NextResponse.json(
-            { success: false, error: { code: 'INTERNAL_ERROR', message: 'Unable to fetch products' } },
-            { status: 500 }
-        )
+        return internalError(error, 'GET /api/v1/admin/products')
     }
 }
 
