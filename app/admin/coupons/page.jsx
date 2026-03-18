@@ -2,20 +2,42 @@
 import { useEffect, useState } from "react"
 import { format } from "date-fns"
 import toast from "react-hot-toast"
-import { Trash2, Edit2, Plus, Copy, CheckCircle, AlertCircle } from "lucide-react"
+import { Trash2, Edit2, Plus, Copy, AlertCircle } from "lucide-react"
 import CouponModal from "@/components/admin/CouponModal"
-import { useDispatch, useSelector } from "react-redux"
-import { addCoupon, updateCoupon, deleteCoupon } from "@/lib/features/coupon/couponSlice"
+import Loading from "@/components/Loading"
+import StatePanel from "@/components/StatePanel"
 
 export default function AdminCoupons() {
 
-    const dispatch = useDispatch()
-    const coupons = useSelector(state => {
-        console.log('Admin coupons selector - Current coupons:', state.coupon?.availableCoupons?.length)
-        return state.coupon?.availableCoupons || []
-    })
+    const [coupons, setCoupons] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState('')
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [selectedCoupon, setSelectedCoupon] = useState(null)
+
+    const fetchCoupons = async () => {
+        try {
+            setError('')
+            setLoading(true)
+
+            const response = await fetch('/api/v1/admin/coupons', { cache: 'no-store' })
+            const result = await response.json()
+
+            if (!response.ok || !result?.success) {
+                throw new Error(result?.error?.message || 'Failed to fetch coupons')
+            }
+
+            setCoupons(result?.data?.coupons || [])
+        } catch {
+            setError('Unable to load coupons right now.')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        fetchCoupons()
+    }, [])
 
     const handleAddCoupon = () => {
         setSelectedCoupon(null)
@@ -27,25 +49,63 @@ export default function AdminCoupons() {
         setIsModalOpen(true)
     }
 
-    const handleSaveCoupon = (formData) => {
-        console.log('Saving coupon:', formData)
-        if (selectedCoupon) {
-            console.log('Dispatching updateCoupon with:', formData)
-            dispatch(updateCoupon(formData))
-            toast.success('Coupon updated successfully!')
-        } else {
-            console.log('Dispatching addCoupon with:', formData)
-            dispatch(addCoupon(formData))
-            toast.success('Coupon created successfully!')
+    const handleSaveCoupon = async (formData) => {
+        const payload = {
+            code: String(formData.code || '').toUpperCase().trim(),
+            description: formData.description,
+            discount: Number(formData.discount),
+            forNewUser: Boolean(formData.forNewUser),
+            forMember: Boolean(formData.forMember),
+            isPublic: Boolean(formData.isPublic),
+            expiresAt: formData.expiresAt,
         }
+
+        let response
+
+        if (selectedCoupon) {
+            response = await fetch(`/api/v1/admin/coupons/${selectedCoupon.code}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+        } else {
+            response = await fetch('/api/v1/admin/coupons', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+        }
+
+        const result = await response.json()
+        if (!response.ok || !result?.success) {
+            throw new Error(result?.error?.message || 'Failed to save coupon')
+        }
+
+        const savedCoupon = result?.data?.coupon
+        setCoupons((prevCoupons) => {
+            if (selectedCoupon) {
+                return prevCoupons.map((coupon) => (coupon.code === selectedCoupon.code ? savedCoupon : coupon))
+            }
+            return [savedCoupon, ...prevCoupons]
+        })
+
+        toast.success(selectedCoupon ? 'Coupon updated successfully!' : 'Coupon created successfully!')
         setSelectedCoupon(null)
         setIsModalOpen(false)
     }
 
-    const handleDeleteCoupon = (couponId) => {
+    const handleDeleteCoupon = async (couponCode) => {
         if (window.confirm('Are you sure you want to delete this coupon?')) {
-            console.log('Dispatching deleteCoupon with ID:', couponId)
-            dispatch(deleteCoupon(couponId))
+            const response = await fetch(`/api/v1/admin/coupons/${couponCode}`, {
+                method: 'DELETE',
+            })
+            const result = await response.json()
+
+            if (!response.ok || !result?.success) {
+                throw new Error(result?.error?.message || 'Failed to delete coupon')
+            }
+
+            setCoupons((prevCoupons) => prevCoupons.filter((coupon) => coupon.code !== couponCode))
             toast.success('Coupon deleted successfully!')
         }
     }
@@ -59,13 +119,27 @@ export default function AdminCoupons() {
         return new Date(expiryDate) < new Date()
     }
 
+    if (loading) return <Loading />
+    if (error) {
+        return (
+            <StatePanel
+                type="error"
+                title="Failed to load coupons"
+                description={error}
+                actionLabel="Try again"
+                onAction={fetchCoupons}
+                className="max-w-4xl"
+            />
+        )
+    }
+
     return (
         <div className="text-slate-500 mb-20">
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-2xl">Manage <span className="text-slate-800 font-medium">Coupons</span></h1>
-                    <p className="text-sm text-slate-400 mt-1">Total: {coupons.length} coupons in Redux</p>
+                    <p className="text-sm text-slate-400 mt-1">Total: {coupons.length} coupons</p>
                 </div>
                 <button
                     onClick={handleAddCoupon}
@@ -155,7 +229,7 @@ export default function AdminCoupons() {
                                             <Edit2 size={18} />
                                         </button>
                                         <button
-                                            onClick={() => handleDeleteCoupon(coupon.id)}
+                                            onClick={() => toast.promise(handleDeleteCoupon(coupon.code), { loading: 'Deleting coupon...' })}
                                             className="p-2.5 text-red-600 hover:bg-red-50 rounded-lg transition"
                                             title="Delete coupon"
                                         >
@@ -182,7 +256,7 @@ export default function AdminCoupons() {
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 coupon={selectedCoupon}
-                onSave={handleSaveCoupon}
+                onSave={(formData) => toast.promise(handleSaveCoupon(formData), { loading: 'Saving coupon...' })}
             />
         </div>
     )
